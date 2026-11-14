@@ -63,6 +63,31 @@ class ServerTests(unittest.TestCase):
         self.call('/api/auth/register',{'name':'Other','email':'other%d@example.com'%self.counter,'password':'different-password'},other)
         self.assertIsNone(self.call('/api/workspace',client=other)['workspace'])
 
+    def test_one_click_guest_isolated_from_other_accounts_and_can_upgrade(self):
+        other = self.new_client()
+        result = self.call('/api/auth/guest', {}, other)
+        guest = result['user']
+        self.assertTrue(guest['guest'])
+        self.assertEqual(guest['name'], 'Guest')
+        self.assertEqual(guest['plan'], 'free')
+        self.assertIsNone(self.call('/api/workspace', client=other)['workspace'])
+        # Guest workspaces must not leak into existing regular accounts.
+        self.call('/api/workspace', {'sourceText': 'Guest private résumé'}, client=other)
+        self.assertIsNone(self.call('/api/workspace')['workspace'])
+        self.assertEqual(self.call('/api/workspace', client=other)['workspace']['sourceText'], 'Guest private résumé')
+        # Repeated clicks from the same cookie reuse that guest, not create new accounts.
+        self.assertEqual(self.call('/api/auth/guest', {}, other)['user']['id'], guest['id'])
+        # Paywall still enforces Free and allows simulated Pro activation.
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            self.call('/api/ai/rewrite', {}, other)
+        self.assertEqual(caught.exception.code, 403)
+        paid = self.call('/api/billing/demo-checkout', {'email': 'demo@example.com'}, other)['user']
+        self.assertEqual(paid['plan'], 'pro')
+        self.call('/api/workspace', {'versions': [{'text':'Guest demo Pro resume'}]}, other)
+        self.assertEqual(self.call('/api/workspace', client=other)['workspace']['versions'][0]['text'], 'Guest demo Pro resume')
+        self.call('/api/auth/logout', {}, other)
+        self.assertIsNone(self.call('/api/auth/me', client=other)['user'])
+
     def test_guest_cannot_read_resume_or_call_ai(self):
         guest=self.new_client()
         for path, body in [('/api/workspace',None),('/api/ai/parse',{'sourceText':'Private'})]:
@@ -145,6 +170,19 @@ class ServerTests(unittest.TestCase):
         self.assertNotIn('password',cookie)
 
 class MigrationTests(unittest.TestCase):
+    def test_guest_does_not_inherit_old_device_workspace(self):
+        old_db=store.DB
+        with tempfile.TemporaryDirectory() as directory:
+            try:
+                store.DB=Path(directory)/'legacy.sqlite'
+                store.write({'sourceText':'Private legacy workspace'})
+                token, guest=auth.create_guest()
+                self.assertTrue(guest['guest'])
+                self.assertIsNone(auth.read_workspace(guest['id']))
+                self.assertEqual(auth.current_user(token)['id'],guest['id'])
+            finally:
+                store.DB=old_db
+
     def test_only_first_account_receives_legacy_workspace(self):
         old_db=store.DB
         with tempfile.TemporaryDirectory() as directory:
