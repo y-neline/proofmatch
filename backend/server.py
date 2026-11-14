@@ -110,6 +110,15 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(size))
             if not isinstance(payload, dict):
                 raise ValueError('Request body must be an object.')
+            if self.path == '/api/auth/guest':
+                existing_user = self.user()
+                if existing_user:
+                    return self.json_response({'user': existing_user})
+                if not self.check_auth_rate():
+                    return self.json_response({'error': 'Too many guest sessions. Try again later.'}, 429)
+                token, guest = auth.create_guest()
+                self.set_session(token)
+                return self.json_response({'user': guest})
             if self.path in {'/api/auth/register', '/api/auth/login'}:
                 if not self.check_auth_rate():
                     return self.json_response({'error': 'Too many attempts. Try again in 10 minutes.'}, 429)
