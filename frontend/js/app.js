@@ -26,7 +26,19 @@ const icons = {
  training:'<path d="m3 8 9-5 9 5-9 5zM6 10v7c4 3 8 3 12 0v-7M21 8v9"/>'
 };
 const icon = name => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${icons[name] || icons.resume}</svg>`;
-const pages = [['dashboard','Overview'],['profile','My Experience'],['paths','Career Paths'],['jobs','Job Matches'],['resume','Résumé Studio'],['training','Training Studio'],['plans','Plans & Billing']];
+// 1. Reorder sidebar links so the workflow reads top-to-bottom:
+const pages = [
+  ['profile', 'My Experience'],
+  ['jobs', 'Job Matches'],
+  ['resume', 'Résumé Studio'],
+  ['training', 'Training Studio'],
+  ['paths', 'Career Paths'],
+  ['dashboard', 'Overview'],
+  ['plans', 'Plans & Billing']
+];
+
+// 2. Change default landing route in render() and guest-login from 'dashboard' to 'profile':
+const page = location.hash.slice(1) || 'profile';
 const button = (text, action, style='') => `<button type="button" class="button ${style}" data-action="${action}">${text}</button>`;
 const tag = (text, style='') => `<span class="tag ${style}">${escape(text)}</span>`;
 const job = () => state.jobs.find(j => j.id === state.selectedJob) || state.jobs[0];
@@ -185,10 +197,10 @@ function resumePage() {
 }
 
 function render() {
- const page=location.hash.slice(1)||'dashboard';
+ const page=location.hash.slice(1)||'profile';
  document.body.classList.toggle('auth-mode',!account);
  if(!account){app.innerHTML=authPage(page==='register'?'register':'login');return;}
- if(page==='login'||page==='register'){location.hash='dashboard';return;}
+ if(page==='login'||page==='register'){location.hash='profile';return;}
  document.querySelector('#account-controls').innerHTML=`<a class="plan-pill ${isPro()?'pro':''}" href="#plans">${isPro()?'✧ Pro':'Free · Upgrade ↗'}</a><button type="button" class="button text" data-action="logout">Sign out</button>`;
 
  document.querySelector('#navigation').innerHTML=pages.map(([id,label])=>`<a href="#${id}" class="nav-link ${page===id?'active':''}"><span class="nav-icon">${icon(id)}</span>${label}${['resume','training'].includes(id)&&!isPro()?'<span class="nav-count">PRO</span>':''}</a>`).join('');
@@ -197,7 +209,7 @@ function render() {
  document.querySelector('.avatar').textContent=state.profile.name.split(' ').map(n=>n[0]).slice(0,2).join('');
  document.querySelector('#mode-label').textContent=config.aiConfigured?'AI connected · Local workspace':'Demo workspace';
  const renderers={dashboard,profile:experiencePage,paths:pathsPage,jobs:jobsPage,resume:resumePage,training:training.page,plans:()=>plansPage(account,isPro()),checkout:()=>checkoutPage(account,isPro())};
- app.innerHTML=['resume','training'].includes(page)&&!isPro()?lockedPage(page):(renderers[page]||dashboard)();
+ app.innerHTML=['resume','training'].includes(page)&&!isPro()?lockedPage(page):(renderers[page]||experiencePage)();
 }
 function showModal(content) {document.querySelector('#modal-content').innerHTML=content;modal.showModal();}
 function closeButton() {return button('Cancel','close');}
@@ -250,7 +262,7 @@ document.addEventListener('click',async event=>{
   const result=await request('auth/guest',{});
   account=result.user;
   await loadWorkspace();
-  location.hash='dashboard';render();
+  location.hash='profile';render();
   return;
  }
  if(action==='logout'){await request('auth/logout',{});account=null;state=initialWorkspace();modal.close();location.hash='login';render();return;}
@@ -326,7 +338,7 @@ document.addEventListener('submit',async event=>{
     await loadWorkspace();form.reset();location.hash='checkout';render();toast('Demo Pro activated. All features unlocked. No payment was taken.');
    }else{
     const result=await request(form.id==='register-form'?'auth/register':'auth/login',values);account=result.user;
-    await loadWorkspace();location.hash='dashboard';render();
+    await loadWorkspace();location.hash='profile';render();
    }
   }catch(error){errorBox.textContent=error.message;}finally{submit.disabled=false;}
   return;
