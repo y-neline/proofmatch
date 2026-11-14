@@ -67,19 +67,7 @@ function feedbackView(f) {return `<div class="feedback"><h4>${escape(f.summary)}
 function render() {
  const page=location.hash.slice(1)||'dashboard';
  document.body.classList.toggle('auth-mode',!account);
- if (!account) {
-  app.innerHTML = authPage(page === 'register' ? 'register' : 'login');
-
-  if (page !== 'register') {
-    app.querySelector('#login-form input[name="email"]').value =
-      'blastwave04@mail.com';
-
-    app.querySelector('#login-form input[name="password"]').value =
-      'regvac-raZgek-1nigme';
-  }
-
-  return;
-}
+ if(!account){app.innerHTML=authPage(page==='register'?'register':'login');return;}
  if(page==='login'||page==='register'){location.hash='dashboard';return;}
  document.querySelector('#account-controls').innerHTML=`<a class="plan-pill ${isPro()?'pro':''}" href="#plans">${isPro()?'✧ Pro':'Free · Upgrade ↗'}</a><button type="button" class="button text" data-action="logout">Sign out</button>`;
 
@@ -95,7 +83,7 @@ function showModal(content) {document.querySelector('#modal-content').innerHTML=
 function closeButton() {return button('Cancel','close');}
 function experienceModal(id) {const e=state.experiences.find(e=>e.id===id)||{};showModal(`<h2>${id?'Edit':'Add'} experience</h2><form id="experience-form" data-id="${id||''}"><div class="two-col"><label class="field">Title<input name="title" required value="${escape(e.title)}"></label><label class="field">Organization<input name="organization" value="${escape(e.organization)}"></label></div><div class="two-col"><label class="field">Type<select name="type">${['Project','Work','Education','Certification','Skill'].map(t=>`<option ${e.type===t?'selected':''}>${t}</option>`).join('')}</select></label><label class="field">Dates<input name="dates" value="${escape(e.dates)}" placeholder="e.g. Jan 2024 – Jun 2025"></label></div><label class="field">What did you actually do?<textarea name="description" required rows="5">${escape(e.description)}</textarea></label><p class="fine-print">Describe your personal contribution. Include results only when you can explain the evidence.</p><label class="small"><input type="checkbox" name="confirmed" ${e.confirmed?'checked':''}> I confirm these details reflect my real experience.</label><div class="row" style="margin-top:22px">${closeButton()}<button class="button primary">Save experience</button></div></form>`);}
 function addJobModal() {showModal(`<h2>Bring your own opportunity</h2><form id="job-form"><div class="two-col"><label class="field">Job title<input name="title" required></label><label class="field">Company<input name="company" required></label></div><label class="field">Location / work arrangement<input name="location" placeholder="Not specified"></label><label class="field">Original application URL<input name="url" type="url" placeholder="https://…"></label><label class="field">Explicit application deadline (optional)<input name="deadline" type="date"></label><label class="field">Full job description<textarea name="description" required rows="8"></textarea></label><p class="fine-print">Use a deadline only if the source explicitly provides it. Manually pasted roles have unconfirmed availability.</p><div class="row">${closeButton()}<button class="button primary">Save opportunity</button></div></form>`);}
-function settingsModal() {showModal(`<h2>Your workspace</h2><form id="profile-form"><label class="field">Name<input name="name" required value="${escape(state.profile.name)}"></label><label class="field">Professional headline<input name="headline" value="${escape(state.profile.headline)}"></label><div class="notice">${config.aiConfigured?'AI connection configured':'AI is not configured'} · ${config.jobsConfigured?'Live job board configured':'Job board is not configured'}<br>Configure server secrets in .env, then restart the server.</div><p class="fine-print">Signed in as ${escape(account.email)} · ${isPro()?'Pro':'Free'} plan. Your data is saved in your own account.</p><a class="button text" href="#plans" data-action="view-plans">Manage plan ↗</a><div class="row">${closeButton()}<button class="button primary">Save profile</button>${button('Reset workspace','clear-demo')}</div></form>`);}
+function settingsModal() {showModal(`<h2>Your workspace</h2><form id="profile-form"><label class="field">Name<input name="name" required value="${escape(state.profile.name)}"></label><label class="field">Professional headline<input name="headline" value="${escape(state.profile.headline)}"></label><div class="notice">${config.aiConfigured?'AI connection configured':'AI is not configured'} · ${config.jobsConfigured?'Live job board configured':'Job board is not configured'}<br>Configure server secrets in .env, then restart the server.</div><p class="fine-print">${account.guest?'Guest demo session':'Signed in as '+escape(account.email)} · ${isPro()?'Pro':'Free'} plan. Your data is saved in your own account.</p><a class="button text" href="#plans" data-action="view-plans">Manage plan ↗</a><div class="row">${closeButton()}<button class="button primary">Save profile</button>${button('Reset workspace','clear-demo')}</div></form>`);}
 function invalidate() {state.analysis=null;state.rewrite=null;state.tasks=[];state.reviews={};feedback=null;activeTask=0;}
 async function aiTask(task,payload,demo) {
  if(config.aiConfigured)return ask(task,payload);
@@ -135,6 +123,15 @@ document.addEventListener('click',async event=>{
  if(paidActions.includes(action)&&!isPro()){location.hash='plans';return;}
  el.disabled=true;
  try {
+ if(action==='guest-login'){
+  const errorBox=document.querySelector('#auth-error');
+  if(errorBox)errorBox.textContent='';
+  const result=await request('auth/guest',{});
+  account=result.user;
+  await loadWorkspace();
+  location.hash='dashboard';render();
+  return;
+ }
  if(action==='logout'){await request('auth/logout',{});account=null;state=initialWorkspace();modal.close();location.hash='login';render();return;}
  if(action==='view-plans'){modal.close();location.hash='plans';return;}
  if(action==='fill-test-card'){document.querySelector('#card-name').value=account.name;document.querySelector('#card-number').value='4242 4242 4242 4242';document.querySelector('#card-expiry').value='12/30';document.querySelector('#card-cvc').value='123';return;}
