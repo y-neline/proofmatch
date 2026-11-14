@@ -150,6 +150,6 @@ class Handler(BaseHTTPRequestHandler):
             self.json_response({'error': 'Request failed: ' + str(error)}, 502)
 
 if __name__ == '__main__':
-    server = ThreadingHTTPServer(('127.0.0.1', int(os.environ.get('PORT', 8000))), Handler)
+    server = ThreadingHTTPServer(('0.0.0.0', int(os.environ.get('PORT', 8000))), Handler)
     print('ProofMatch running at http://localhost:' + str(server.server_port), flush=True)
     server.serve_forever()
