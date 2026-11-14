@@ -14,6 +14,7 @@ let workspace=initialWorkspace(),session=null,checkoutBody=null;
 globalThis.fetch=async(url,options)=>({ok:true,json:async()=>{
  if(url.endsWith('config'))return {aiConfigured:false,jobsConfigured:false};
  if(url.endsWith('auth/me'))return {user:session};
+ if(url.endsWith('auth/guest')){session={id:12,name:'Guest',email:'guest-test@proofmatch.invalid',guest:true,plan:'free',proUntil:null};return {user:session};}
  if(url.endsWith('auth/register')||url.endsWith('auth/login')){session={id:1,name:'Test User',email:'test@example.com',plan:'free',proUntil:null};return {user:session};}
  if(url.endsWith('auth/logout')){session=null;return {signedOut:true};}
  if(url.endsWith('billing/demo-checkout')){checkoutBody=JSON.parse(options.body);session={...session,plan:'pro',proUntil:Math.floor(Date.now()/1000)+86400};return {user:session};}
@@ -24,9 +25,16 @@ globalThis.fetch=async(url,options)=>({ok:true,json:async()=>{
 await import('../frontend/js/app.js');
 await new Promise(resolve=>setTimeout(resolve,0));
 assert.ok(element('#app').innerHTML.includes('id="login-form"'));
+assert.ok(element('#app').innerHTML.includes('data-action="guest-login"'));
+
 function route(page){location.hash='#'+page;listeners.hashchange();}
 async function click(action,data={}){const el={dataset:{action,...data},disabled:false};await listeners.click({target:{closest:()=>el}});}
 async function submit(id,values){await listeners.submit({preventDefault(){},target:{id,values,querySelector:()=>element('submit'),reset(){}}});}
+await click('guest-login');
+assert.ok(element('#app').innerHTML.includes('Good to see you'));
+assert.equal(session.guest,true);
+await click('logout');
+assert.ok(element('#app').innerHTML.includes('data-action="guest-login"'));
 route('register');assert.ok(element('#app').innerHTML.includes('id="register-form"'));
 await submit('register-form',{name:'Test User',email:'test@example.com',password:'test-password'});
 assert.ok(element('#app').innerHTML.includes('Good to see you'));
@@ -59,4 +67,6 @@ globalThis.FileReader=class{readAsDataURL(){this.result='data:application/pdf;ba
 await listeners.change({target:{id:'resume-file',files:[{name:'test.pdf',size:3}],disabled:false}});
 assert.ok(workspace.experiences.some(e=>e.description==='Built Vue asset interfaces with filtering and REST APIs.'));
 await click('logout');assert.ok(element('#app').innerHTML.includes('id="login-form"'));
+assert.ok(element('#app').innerHTML.includes('data-action="guest-login"'));
+
 console.log('Passed: registration/login pages, free feature gates, test-card-only checkout, no card transmission, Pro unlock, logout, résumé and training workflows, both import methods.');
