@@ -1,6 +1,7 @@
 import {request, ask} from './api.js';
 import {authPage, plansPage, lockedPage, checkoutPage} from './account.js';
 import {initialWorkspace, exampleTasks, examplePaths} from './data.js';
+import {createTrainingController} from './training.js';
 
 // Central state and small rendering functions keep each feature easy to replace.
 let state = initialWorkspace();
@@ -8,8 +9,6 @@ let config = {aiConfigured:false,jobsConfigured:false};
 let paths = examplePaths;
 let account = null;
 const isPro = () => account?.plan === 'pro' && account.proUntil * 1000 > Date.now();
-let activeTask = 0;
-let feedback = null;
 let importMode = 'upload';
 let importBusy = false;
 let importMessage = '';
@@ -45,6 +44,19 @@ function heading(eyebrow,title,subtitle,action='') {return `<div class="page-hea
 function applicationLink(j) {const url=safeUrl(j?.url);return url ? `<a class="button primary" href="${url}" target="_blank" rel="noopener noreferrer">Apply on source ↗</a>` : tag('Example · no live application','gray');}
 function companyLogo(j,i=0) {return `<div class="company-logo ${i===1?'purple':i===2?'blue':''}">${escape(j.company.slice(0,1))}<span style="font-size:13px">${i===0?'◒':''}</span></div>`;}
 function jobCard(j,i=0) {return `<article class="job-card ${j.id===state.selectedJob?'selected':''}"><div class="row spread">${companyLogo(j,i)}<button class="bookmark" data-action="bookmark" data-id="${escape(j.id)}" aria-label="${state.savedJobs.includes(j.id)?'Unsave':'Save'} ${escape(j.title)}">${state.savedJobs.includes(j.id)?'▣':'▢'}</button></div><h3>${escape(j.title)}</h3><p>${escape(j.company)} <span>·</span> ${escape(j.location)}</p><div class="chip-row">${tag(j.demo?'Example listing':j.source,j.demo?'gray':'')}${tag(j.demo?'Not a live job':'Source checked')}</div><p>${escape(j.description.slice(0,115))}…</p><button class="button text" data-action="select-job" data-id="${escape(j.id)}">${j.id===state.selectedJob?'View selected role':'Explore this role'} →</button><div class="job-bottom"><span>${dateLabel(j.deadline)}</span><span>↗</span></div></article>`;}
+
+const training = createTrainingController({
+  getState: () => state,
+  getConfig: () => config,
+  getJob: job,
+  confirmed,
+  progress,
+  exampleTasks,
+  aiTask,
+  save,
+  render
+});
+
 function dashboard() {
  const j=job(); const p=progress();
  return heading('YOUR NEXT CHAPTER',`Good to see you, ${escape(state.profile.name.split(' ')[0])} <span style="font-size:25px">✳</span>`,"Your experience has potential. Let’s put it to work.",button('+ Add experience','add-experience','primary'))+
@@ -171,8 +183,7 @@ function resumePage() {
       </section>
     </div>`;
 }
-function trainingPage() {const t=state.tasks[activeTask];return heading('CONFIDENCE COMES FROM PRACTICE','Prepare with intention.','One role. Your real experience. Questions that connect the two.',button(state.tasks.length?'Create a fresh plan ✧':'Create training plan ✧','create-plan','primary'))+`${!config.aiConfigured?'<div class="notice">Demo training examples · Connect your AI API to generate role-specific tasks and assess answers. Demo answers never earn completion.</div>':''}<div class="panel" style="margin-bottom:23px"><div class="row spread"><div><strong class="small">${escape(job().title)} · Training plan completion</strong><p class="fine-print">${state.tasks.filter(t=>state.reviews[t.id]?.completed).length} of ${state.tasks.length} tasks completed · Weighted by task scope</p></div><h2>${progress()}%</h2></div><div class="progress"><span style="width:${progress()}%"></span></div><p class="fine-print">Completion tracks reviewed tasks. It does not measure job qualification or hiring probability. Apply whenever you choose.</p></div>${!t?'<div class="panel empty">Your practice starts here.<br><br>Create a plan to connect a job requirement with your experience and a clear check.</div>':`<div class="two-col"><section class="stack">${state.tasks.map((task,i)=>`<button class="task-card ${i===activeTask?'selected':''}" data-action="task" data-index="${i}"><span class="task-number">${state.reviews[task.id]?.completed?'✓':String(i+1).padStart(2,'0')}</span><span><strong>${escape(task.title)}</strong><small>${escape(task.type)} · Weight ${task.weight} ${state.reviews[task.id]?.completed?'· Completed':''}</small></span></button>`).join('')}<div class="info-strip">✧ Practical submissions receive a text review. Code is not executed or independently verified.</div></section><section class="panel">${tag(t.type)}<h2 style="margin-top:18px">${escape(t.title)}</h2><p class="fine-print">Requirement: ${escape(t.requirement)}<br>Experience: ${escape(t.experience)}</p><p class="question">${escape(t.question)}</p><strong class="small">What a strong answer includes</strong><ul class="small muted">${t.criteria.map(c=>`<li>${escape(c)}</li>`).join('')}</ul><label class="field">Your answer<textarea id="training-answer" rows="7" placeholder="Be specific about what you did, how you did it, and what you still need to learn.">${escape(state.reviews[t.id]?.answer||'')}</textarea></label>${button('Review my answer ✧','review','primary')}${feedback?feedbackView(feedback):''}${state.reviews[t.id]?.followUp?`<div class="feedback"><strong>Independent follow-up</strong><p>${escape(state.reviews[t.id].followUp)}</p><label class="field">Try without a hint<textarea id="followup-answer" rows="4">${escape(state.reviews[t.id]?.followUpAnswer||'')}</textarea></label>${button('Review follow-up','followup')}</div>`:''}</section></div>`}`;}
-function feedbackView(f) {return `<div class="feedback"><h4>${escape(f.summary)}</h4>${f.demo?tag('Demo guidance · not an assessment','amber'):tag('AI review · not execution','gray')}<h4>What’s working</h4><ul>${f.strengths.map(s=>`<li>${escape(s)}</li>`).join('')}</ul><h4>Keep working on</h4><ul>${f.gaps.map(s=>`<li>${escape(s)}</li>`).join('')}</ul><p><strong>Try this:</strong> ${escape(f.hint)}</p></div>`;}
+
 function render() {
  const page=location.hash.slice(1)||'dashboard';
  document.body.classList.toggle('auth-mode',!account);
@@ -185,7 +196,7 @@ function render() {
  document.querySelector('#sidebar-name').textContent=state.profile.name;
  document.querySelector('.avatar').textContent=state.profile.name.split(' ').map(n=>n[0]).slice(0,2).join('');
  document.querySelector('#mode-label').textContent=config.aiConfigured?'AI connected · Local workspace':'Demo workspace';
- const renderers={dashboard,profile:experiencePage,paths:pathsPage,jobs:jobsPage,resume:resumePage,training:trainingPage,plans:()=>plansPage(account,isPro()),checkout:()=>checkoutPage(account,isPro())};
+ const renderers={dashboard,profile:experiencePage,paths:pathsPage,jobs:jobsPage,resume:resumePage,training:training.page,plans:()=>plansPage(account,isPro()),checkout:()=>checkoutPage(account,isPro())};
  app.innerHTML=['resume','training'].includes(page)&&!isPro()?lockedPage(page):(renderers[page]||dashboard)();
 }
 function showModal(content) {document.querySelector('#modal-content').innerHTML=content;modal.showModal();}
@@ -193,7 +204,7 @@ function closeButton() {return button('Cancel','close');}
 function experienceModal(id) {const e=state.experiences.find(e=>e.id===id)||{};showModal(`<h2>${id?'Edit':'Add'} experience</h2><form id="experience-form" data-id="${id||''}"><div class="two-col"><label class="field">Title<input name="title" required value="${escape(e.title)}"></label><label class="field">Organization<input name="organization" value="${escape(e.organization)}"></label></div><div class="two-col"><label class="field">Type<select name="type">${['Project','Work','Education','Certification','Skill'].map(t=>`<option ${e.type===t?'selected':''}>${t}</option>`).join('')}</select></label><label class="field">Dates<input name="dates" value="${escape(e.dates)}" placeholder="e.g. Jan 2024 – Jun 2025"></label></div><label class="field">What did you actually do?<textarea name="description" required rows="5">${escape(e.description)}</textarea></label><p class="fine-print">Describe your personal contribution. Include results only when you can explain the evidence.</p><label class="small"><input type="checkbox" name="confirmed" ${e.confirmed?'checked':''}> I confirm these details reflect my real experience.</label><div class="row" style="margin-top:22px">${closeButton()}<button class="button primary">Save experience</button></div></form>`);}
 function addJobModal() {showModal(`<h2>Bring your own opportunity</h2><form id="job-form"><div class="two-col"><label class="field">Job title<input name="title" required></label><label class="field">Company<input name="company" required></label></div><label class="field">Location / work arrangement<input name="location" placeholder="Not specified"></label><label class="field">Original application URL<input name="url" type="url" placeholder="https://…"></label><label class="field">Explicit application deadline (optional)<input name="deadline" type="date"></label><label class="field">Full job description<textarea name="description" required rows="8"></textarea></label><p class="fine-print">Use a deadline only if the source explicitly provides it. Manually pasted roles have unconfirmed availability.</p><div class="row">${closeButton()}<button class="button primary">Save opportunity</button></div></form>`);}
 function settingsModal() {showModal(`<h2>Your workspace</h2><form id="profile-form"><label class="field">Name<input name="name" required value="${escape(state.profile.name)}"></label><label class="field">Professional headline<input name="headline" value="${escape(state.profile.headline)}"></label><div class="notice">${config.aiConfigured?'AI connection configured':'AI is not configured'} · ${config.jobsConfigured?'Live job board configured':'Job board is not configured'}<br>Configure server secrets in .env, then restart the server.</div><p class="fine-print">${account.guest?'Guest demo session':'Signed in as '+escape(account.email)} · ${isPro()?'Pro':'Free'} plan. Your data is saved in your own account.</p><a class="button text" href="#plans" data-action="view-plans">Manage plan ↗</a><div class="row">${closeButton()}<button class="button primary">Save profile</button>${button('Reset workspace','clear-demo')}</div></form>`);}
-function invalidate() {state.analysis=null;state.rewrite=null;state.tasks=[];state.reviews={};feedback=null;activeTask=0;}
+function invalidate() {state.analysis=null;state.rewrite=null;state.tasks=[];state.reviews={};training.reset();}
 async function aiTask(task,payload,demo) {
  if(config.aiConfigured)return ask(task,payload);
  toast('Demo output — connect your API for personalized AI results.');
@@ -232,6 +243,7 @@ document.addEventListener('click',async event=>{
  if(paidActions.includes(action)&&!isPro()){location.hash='plans';return;}
  el.disabled=true;
  try {
+ if(await training.handleAction(action,el))return;
  if(action==='guest-login'){
   const errorBox=document.querySelector('#auth-error');
   if(errorBox)errorBox.textContent='';
@@ -293,25 +305,9 @@ document.addEventListener('click',async event=>{
  else if(action==='download')download(resumeText(),'ProofMatch-resume.txt');
  else if(action==='download-version'){const v=state.versions.find(v=>v.id===el.dataset.id);download(v.text,`ProofMatch-resume-v${v.number}.txt`);}
  else if(action==='print')window.print();
- else if(action==='create-plan'){
-  if(!confirmed().length)throw Error('Confirm at least one experience before creating your plan.');
-  const result=await aiTask('train',{job:job(),experiences:confirmed()},()=>({tasks:exampleTasks()}));
-  if(!Array.isArray(result.tasks)||!result.tasks.length||result.tasks.some(t=>!t.id||!t.question||!Array.isArray(t.criteria)||!(t.weight>0))||new Set(result.tasks.map(t=>t.id)).size!==result.tasks.length)throw Error('The training plan has missing or invalid tasks.');
-  state.tasks=result.tasks;state.reviews={};activeTask=0;feedback=null;await save();render();
- }
- else if(action==='task'){activeTask=Number(el.dataset.index);feedback=state.reviews[state.tasks[activeTask].id]?.feedback||null;render();}
- else if(action==='review'||action==='followup'){
-  const t=state.tasks[activeTask];const follow=action==='followup';const answer=document.querySelector(follow?'#followup-answer':'#training-answer').value.trim();if(!answer)throw Error('Write an answer before requesting feedback.');
-  const task=follow?{...t,question:state.reviews[t.id].followUp}:t;
-  const result=await aiTask('feedback',{task,answer},()=>({summary:'Your response has been saved. A connected model is needed to assess it.',strengths:['You recorded an answer for review.'],gaps:['Demo mode cannot determine whether the criteria are met.'],hint:'Compare each claim with the criteria and include a concrete example.',followUp:'Choose a different project scenario. Explain your decision, a failure mode, and how you would check the result.',meetsCriteria:false,demo:true}));
-  if(typeof result.summary!=='string'||!Array.isArray(result.strengths)||!Array.isArray(result.gaps)||typeof result.meetsCriteria!=='boolean')throw Error('Invalid feedback response.');
-  const previous=state.reviews[t.id]||{};
-  state.reviews[t.id]={...previous,...(follow?{followUpAnswer:answer}:{answer}),feedback:result,followUp:result.meetsCriteria?null:result.followUp,completed:config.aiConfigured&&result.meetsCriteria===true};
-  feedback=result;await save();render();
- }
  else if(action==='clear-demo'){
   if(!window.confirm('Reset this entire local workspace? This removes your experiences, saved résumés, and training. Export anything you want to keep first.')) return;
-  state=initialWorkspace();feedback=null;activeTask=0;paths=examplePaths;state.profile={name:'Your name',headline:'Your professional headline',location:'',remote:'',interests:'',authorization:'Not specified'};state.experiences=[];state.sourceText='';state.jobs=[{id:'starter',title:'Choose your target role',company:'Your next company',location:'Not specified',description:'Paste a full job description to begin.',source:'Not configured',demo:true,status:'Not configured',deadline:null,url:''}];state.selectedJob='starter';state.savedJobs=[];await save();modal.close();render();toast('Workspace reset. Add your own experience and job description.');
+  state=initialWorkspace();training.reset();paths=examplePaths;state.profile={name:'Your name',headline:'Your professional headline',location:'',remote:'',interests:'',authorization:'Not specified'};state.experiences=[];state.sourceText='';state.jobs=[{id:'starter',title:'Choose your target role',company:'Your next company',location:'Not specified',description:'Paste a full job description to begin.',source:'Not configured',demo:true,status:'Not configured',deadline:null,url:''}];state.selectedJob='starter';state.savedJobs=[];await save();modal.close();render();toast('Workspace reset. Add your own experience and job description.');
  }
  } catch(error){toast(error.message);}finally{el.disabled=false;}
 });
@@ -363,13 +359,13 @@ document.addEventListener('change',async event=>{
 document.querySelector('#settings-button').onclick=settingsModal;
 document.querySelector('#help-button').onclick=()=>showModal(`<h2>Real experience. Clear next steps.</h2><p class="small muted">ProofMatch connects your experience, a specific job, a tailored résumé, and focused practice. The initial profile and listings are examples.</p><p class="small muted">Use My Experience to import or add your own details. Confirm facts before tailoring. Connect your AI API and Greenhouse board in .env for live features. Training progress never blocks an application.</p><p class="small muted">Your workspace belongs to your account. Free includes features through Job Matches. Pro unlocks Résumé and Training. Checkout is a simulation with no real payment.</p>${closeButton()}`);
 document.querySelector('.mobile-menu').onclick=()=>document.querySelector('.sidebar').classList.toggle('open');
-window.addEventListener('hashchange',()=>{document.querySelector('.sidebar').classList.remove('open');feedback=null;render();window.scrollTo(0,0);});
+window.addEventListener('hashchange',()=>{document.querySelector('.sidebar').classList.remove('open');training.clearFeedback();render();window.scrollTo(0,0);});
 /** New accounts start with an empty experience library, not another user's data. */
 async function loadWorkspace(){
  const saved=await request('workspace');
  state=saved.workspace||initialWorkspace();
  if(!saved.workspace){state.profile={...state.profile,name:account.name,headline:'',location:'',remote:'',interests:'',authorization:'Not specified'};state.sourceText='';state.experiences=[];state.savedJobs=[];}
- feedback=null;activeTask=0;importMessage='';importError='';paths=examplePaths;
+ training.reset();importMessage='';importError='';paths=examplePaths;
 }
 async function init(){try{
  const [settings,session]=await Promise.all([request('config'),request('auth/me')]);config=settings;account=session.user;
