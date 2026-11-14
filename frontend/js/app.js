@@ -67,7 +67,19 @@ function feedbackView(f) {return `<div class="feedback"><h4>${escape(f.summary)}
 function render() {
  const page=location.hash.slice(1)||'dashboard';
  document.body.classList.toggle('auth-mode',!account);
- if(!account){app.innerHTML=authPage(page==='register'?'register':'login');return;}
+ if (!account) {
+  app.innerHTML = authPage(page === 'register' ? 'register' : 'login');
+
+  if (page !== 'register') {
+    app.querySelector('#login-form input[name="email"]').value =
+      'demo@proofmatch.test';
+
+    app.querySelector('#login-form input[name="password"]').value =
+      'YOUR_DEMO_PASSWORD';
+  }
+
+  return;
+}
  if(page==='login'||page==='register'){location.hash='dashboard';return;}
  document.querySelector('#account-controls').innerHTML=`<a class="plan-pill ${isPro()?'pro':''}" href="#plans">${isPro()?'✧ Pro':'Free · Upgrade ↗'}</a><button type="button" class="button text" data-action="logout">Sign out</button>`;
 
