@@ -2,6 +2,8 @@
 import base64
 import json
 import urllib.request
+import http.cookiejar
+import getpass
 
 
 def synthetic_pdf():
@@ -21,13 +23,16 @@ def synthetic_pdf():
     return pdf + b'trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + str(start).encode() + b'\n%%EOF'
 
 
+CLIENT = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+
 def post(route, payload):
     request = urllib.request.Request('http://localhost:8000/api/' + route,
         data=json.dumps(payload).encode(), headers={'Content-Type':'application/json'})
-    with urllib.request.urlopen(request, timeout=90) as response:
+    with CLIENT.open(request, timeout=90) as response:
         return json.load(response)
 
 if __name__ == '__main__':
+    post('auth/login', {'email': input('Existing account email: '), 'password': getpass.getpass('Password: ')})
     result = post('import', {'name':'synthetic-resume.pdf','content':base64.b64encode(synthetic_pdf()).decode()})
     assert 'Built Vue asset interfaces' in result['text']
     print('PDF text extraction: passed', flush=True)

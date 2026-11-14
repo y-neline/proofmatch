@@ -224,3 +224,6 @@ __marimo__/
 !.env.example
 data/
 .DS_Store
+
+# Local source export
+proofmatch-source.zip

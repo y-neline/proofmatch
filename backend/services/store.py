@@ -1,4 +1,4 @@
-"""SQLite persistence for a single-user local workspace."""
+"""SQLite connection and legacy local workspace retained for first-account migration."""
 import json
 import sqlite3
 from pathlib import Path
