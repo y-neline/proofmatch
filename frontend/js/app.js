@@ -60,8 +60,117 @@ function experiencePage() {return heading('START WITH WHAT’S REAL','Your story
 function pathsPage() {return heading('SEE THE POSSIBILITIES','There’s more than one way forward.','Explore directions connected to your evidence, interests, and preferences.',button('Refresh suggestions ✧','paths','primary'))+`<div class="notice">${config.aiConfigured?'Suggestions are based on your supplied experience, not a certification of suitability.':'Illustrative career paths · Connect your AI API to generate suggestions from your own experience.'}</div><div class="job-list">${paths.map((p,i)=>`<article class="list-card"><span class="eyebrow">DIRECTION 0${i+1}</span><h3>${escape(p.title)}</h3>${tag(p.label || 'Based on your experience')}<p class="small muted">${escape(p.reason)}</p><div class="chip-row">${(p.skills||[]).map(s=>tag(s,'gray')).join('')}</div><div class="divider"></div><strong class="small">What to explore next</strong><ul>${(p.gaps||[]).map(g=>`<li>${escape(g)}</li>`).join('')}</ul><a class="button" href="#jobs">Explore opportunities →</a></article>`).join('')}</div><div class="info-strip">✧ These are starting points. You can pursue a different path and add evidence as you go.</div>`;}
 function jobsPage() {const j=job();return heading('FIND YOUR NEXT OPPORTUNITY','A role worth preparing for.','Explore source-linked roles or bring a job description of your own.',button('+ Paste a job description','add-job','primary'))+`<div class="toolbar"><input id="job-query" placeholder="Search job titles or locations…" aria-label="Search jobs">${button('Search live jobs ↗','search-jobs')}${button('Show saved','saved-jobs')}</div><div class="notice">${config.jobsConfigured?'Live search uses your configured company’s Greenhouse board. Job status reflects the last successful check.':'Example listings are shown below. Set GREENHOUSE_BOARD in .env for real company postings, or paste a JD. No sample job is a live opportunity.'}</div><div class="job-list" id="job-results">${state.jobs.map(jobCard).join('')}</div><section class="section-space panel"><div class="section-head"><div><div class="eyebrow">SELECTED ROLE</div><h2 style="margin-top:9px">${escape(j.title)} at ${escape(j.company)}</h2></div>${applicationLink(j)}</div><p class="small muted">${escape(j.description)}</p><div class="row">${tag(j.source,'gray')}${tag(j.status,'gray')}${tag(dateLabel(j.deadline),'amber')}</div>${j.checkedAt?`<p class="fine-print">Last checked: ${escape(new Date(j.checkedAt).toLocaleString())}</p>`:''}<div class="divider"></div><div class="row">${button('Compare with my experience ✧','analyze','primary')}</div><div id="analysis">${analysisView()}</div></section>`;}
 function analysisView() {if(!state.analysis)return '';return `<div class="section-space"><h2>Requirements & your evidence</h2>${state.analysis.requirements.map(r=>`<article class="requirement"><div class="row spread"><h4>${escape(r.requirement)}</h4>${tag(r.status,r.status==='Supported'?'':'amber')}</div>${tag(r.kind,'gray')}<blockquote>${escape(r.quote)}</blockquote><p><strong>Evidence:</strong> ${escape(r.evidence)}</p><p><strong>Next step:</strong> ${escape(r.next)}</p></article>`).join('')}</div>`;}
-function resumeText() {return `${state.profile.name}\n${state.profile.headline}\n${state.profile.location}\n\nEXPERIENCE\n${confirmed().map(e=>`${e.title} | ${e.organization} | ${e.dates}\n${e.description}`).join('\n\n')}${state.rewrite?'\n\nTAILORED STATEMENT\n'+state.rewrite.tailored:''}`;}
-function resumePage() {const j=job();return heading('GIVE YOUR EXPERIENCE A CLEAR VOICE','A résumé with a reason.','Tailor the emphasis. Keep the facts.',button('Print / Save PDF ↗','print','primary'))+`<div class="two-col"><section class="stack studio-controls"><div class="panel"><div class="eyebrow">TAILORING FOR</div><h2 style="margin:12px 0">${escape(j.title)}</h2><p class="small muted">${escape(j.company)} · ${escape(j.location)}</p><div class="divider"></div><label class="field">Choose a confirmed experience<select id="rewrite-experience">${confirmed().map(e=>`<option value="${e.id}">${escape(e.title)}</option>`).join('')}</select></label>${button('Create three versions ✧','rewrite','primary')}<p class="fine-print">Only confirmed facts are available for rewriting. AI suggestions still need your review.</p></div>${state.rewrite?`<div class="panel"><h2>Make every line traceable</h2>${['concise','tailored','interview'].map(k=>`<h4 style="text-transform:capitalize">${k==='interview'?'Interview expansion':k+' version'}</h4><p class="small">${escape(state.rewrite[k])}</p>`).join('')}<div class="divider"></div><strong class="small">Facts used</strong><ul class="small muted">${state.rewrite.factsUsed.map(f=>`<li>${escape(f)}</li>`).join('')}</ul>${state.rewrite.questions?.length?`<strong class="small">To confirm</strong><ul class="small muted">${state.rewrite.questions.map(f=>`<li>${escape(f)}</li>`).join('')}</ul>`:''}</div>`:''}<div class="panel"><h2>Version history</h2><p class="small muted">Each saved résumé keeps its job description and training plan snapshot.</p><div class="row">${button('Save version','save-version')}${button('Download .txt','download')}</div>${state.versions.map(v=>`<div class="requirement"><strong class="small">${escape(v.job.title)} · v${v.number}</strong><p>${escape(new Date(v.createdAt).toLocaleString())}</p><button class="button text" data-action="download-version" data-id="${v.id}">Download saved version ↓</button></div>`).join('')}</div></section><section class="resume-paper" id="resume-document"><h2>${escape(state.profile.name)}</h2><p class="muted">${escape(state.profile.headline)} · ${escape(state.profile.location)}</p><h4>EXPERIENCE & EDUCATION</h4>${confirmed().map(e=>`<h3>${escape(e.title)}</h3><p class="muted">${escape(e.organization)} · ${escape(e.dates)}</p><ul><li>${escape(e.description)}</li></ul>`).join('')||'<p>Add and confirm your experience to build this document.</p>'}${state.rewrite?`<h4>PROPOSED ROLE-SPECIFIC STATEMENT</h4><p>${escape(state.rewrite.tailored)}</p>${tag('Review before submitting','amber')}`:''}</section></div>`;}
+function splitBullets(text) {
+  return String(text || '')
+    .split(/\n+|;\s+|\.\s+(?=[A-Z])/)
+    .map(s => s.replace(/^[•\-*]\s*/, '').replace(/\.$/, '').trim())
+    .filter(Boolean);
+}
+
+function getBulletsFor(exp) {
+  const tailoredExp = state.rewrite?.experiences?.find(x => x.id === exp.id);
+  if (tailoredExp?.bullets?.length) return tailoredExp.bullets;
+  return splitBullets(exp.description);
+}
+
+function resumeText() {
+  const sections = ['Education', 'Work', 'Project', 'Skill'];
+  const labels = { Education: 'EDUCATION', Work: 'EXPERIENCE', Project: 'PROJECTS', Skill: 'TECHNICAL SKILLS' };
+  const header = [state.profile.name, [state.profile.headline, state.profile.location].filter(Boolean).join(' | ')].filter(Boolean).join('\n');
+  const summary = state.rewrite?.summary ? `\n\nSUMMARY\n${state.rewrite.summary}` : '';
+  const body = sections.map(type => {
+    const items = confirmed().filter(e => e.type === type);
+    if (!items.length) return '';
+    const rendered = items.map(e => {
+      const bullets = getBulletsFor(e).map(b => `  • ${b}`).join('\n');
+      return `${e.title}${e.organization ? ' — ' + e.organization : ''}${e.dates ? ' (' + e.dates + ')' : ''}\n${bullets}`;
+    }).join('\n\n');
+    return `\n\n${labels[type]}\n${rendered}`;
+  }).join('');
+  return header + summary + body;
+}
+
+function renderResumeSection(headingText, items, isSkills = false) {
+  if (!items.length) return '';
+  return `
+    <div class="cv-section">
+      <h4>${headingText}</h4>
+      ${items.map(e => {
+        const bullets = getBulletsFor(e);
+        if (isSkills) {
+          return `<p class="cv-skill-row"><strong>${escape(e.title)}:</strong> ${escape(bullets.join(', '))}</p>`;
+        }
+        return `
+          <div class="cv-entry">
+            <div class="cv-entry-head">
+              <strong>${escape(e.title)}</strong>
+              <span>${escape(e.dates)}</span>
+            </div>
+            ${e.organization ? `<div class="cv-org">${escape(e.organization)}</div>` : ''}
+            <ul>${bullets.map(b => `<li>${escape(b)}</li>`).join('')}</ul>
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function resumePage() {
+  const j = job();
+  const edu = confirmed().filter(e => e.type === 'Education');
+  const work = confirmed().filter(e => e.type === 'Work');
+  const projects = confirmed().filter(e => e.type === 'Project');
+  const skills = confirmed().filter(e => e.type === 'Skill' || e.type === 'Certification');
+  const contactLine = [state.profile.headline, state.profile.location, account?.email].filter(Boolean).map(escape).join(' · ');
+
+  return heading('GIVE YOUR EXPERIENCE A CLEAR VOICE', 'A résumé with a reason.', 'Tailor the emphasis. Keep the facts.', button('Print / Save PDF ↗', 'print', 'primary')) +
+    `<div class="two-col">
+      <section class="stack studio-controls">
+        <div class="panel">
+          <div class="eyebrow">TAILORING FOR</div>
+          <h2 style="margin:12px 0">${escape(j.title)}</h2>
+          <p class="small muted">${escape(j.company)} · ${escape(j.location)}</p>
+          <div class="divider"></div>
+          ${button('Tailor full résumé to role ✧', 'rewrite', 'primary')}
+          <p class="fine-print">Tailors all ${confirmed().length} confirmed entries to ${escape(j.title)} at ${escape(j.company)}. Confirm more entries in My Experience to include them.</p>
+        </div>
+        ${state.rewrite ? `
+        <div class="panel">
+          <h2>Make every line traceable</h2>
+          ${['concise', 'tailored', 'interview'].map(k => `
+            <h4 style="text-transform:capitalize">${k === 'interview' ? 'Interview expansion' : k + ' version'}</h4>
+            <p class="small">${escape(state.rewrite[k])}</p>
+          `).join('')}
+          <div class="divider"></div>
+          <strong class="small">Facts used</strong>
+          <ul class="small muted">${state.rewrite.factsUsed.map(f => `<li>${escape(f)}</li>`).join('')}</ul>
+          ${state.rewrite.questions?.length ? `<strong class="small">To confirm</strong><ul class="small muted">${state.rewrite.questions.map(f => `<li>${escape(f)}</li>`).join('')}</ul>` : ''}
+        </div>` : ''}
+        <div class="panel">
+          <h2>Version history</h2>
+          <p class="small muted">Each saved résumé keeps its job description and training plan snapshot.</p>
+          <div class="row">${button('Save version', 'save-version')}${button('Download .txt', 'download')}</div>
+          ${state.versions.map(v => `<div class="requirement"><strong class="small">${escape(v.job.title)} · v${v.number}</strong><p>${escape(new Date(v.createdAt).toLocaleString())}</p><button class="button text" data-action="download-version" data-id="${v.id}">Download saved version ↓</button></div>`).join('')}
+        </div>
+      </section>
+
+      <section class="resume-paper" id="resume-document">
+        <header class="cv-header">
+          <h2>${escape(state.profile.name)}</h2>
+          ${contactLine ? `<p class="cv-contact">${contactLine}</p>` : ''}
+        </header>
+        ${state.rewrite?.summary ? `
+          <div class="cv-section">
+            <h4>SUMMARY</h4>
+            <p class="cv-summary">${escape(state.rewrite.summary)}</p>
+          </div>` : ''}
+        ${confirmed().length ? `
+          ${renderResumeSection('EDUCATION', edu)}
+          ${renderResumeSection('EXPERIENCE', work)}
+          ${renderResumeSection('PROJECTS', projects)}
+          ${renderResumeSection('TECHNICAL SKILLS', skills, true)}
+        ` : '<p class="muted">Add and confirm your experience in My Experience to build this document.</p>'}
+      </section>
+    </div>`;
+}
 function trainingPage() {const t=state.tasks[activeTask];return heading('CONFIDENCE COMES FROM PRACTICE','Prepare with intention.','One role. Your real experience. Questions that connect the two.',button(state.tasks.length?'Create a fresh plan ✧':'Create training plan ✧','create-plan','primary'))+`${!config.aiConfigured?'<div class="notice">Demo training examples · Connect your AI API to generate role-specific tasks and assess answers. Demo answers never earn completion.</div>':''}<div class="panel" style="margin-bottom:23px"><div class="row spread"><div><strong class="small">${escape(job().title)} · Training plan completion</strong><p class="fine-print">${state.tasks.filter(t=>state.reviews[t.id]?.completed).length} of ${state.tasks.length} tasks completed · Weighted by task scope</p></div><h2>${progress()}%</h2></div><div class="progress"><span style="width:${progress()}%"></span></div><p class="fine-print">Completion tracks reviewed tasks. It does not measure job qualification or hiring probability. Apply whenever you choose.</p></div>${!t?'<div class="panel empty">Your practice starts here.<br><br>Create a plan to connect a job requirement with your experience and a clear check.</div>':`<div class="two-col"><section class="stack">${state.tasks.map((task,i)=>`<button class="task-card ${i===activeTask?'selected':''}" data-action="task" data-index="${i}"><span class="task-number">${state.reviews[task.id]?.completed?'✓':String(i+1).padStart(2,'0')}</span><span><strong>${escape(task.title)}</strong><small>${escape(task.type)} · Weight ${task.weight} ${state.reviews[task.id]?.completed?'· Completed':''}</small></span></button>`).join('')}<div class="info-strip">✧ Practical submissions receive a text review. Code is not executed or independently verified.</div></section><section class="panel">${tag(t.type)}<h2 style="margin-top:18px">${escape(t.title)}</h2><p class="fine-print">Requirement: ${escape(t.requirement)}<br>Experience: ${escape(t.experience)}</p><p class="question">${escape(t.question)}</p><strong class="small">What a strong answer includes</strong><ul class="small muted">${t.criteria.map(c=>`<li>${escape(c)}</li>`).join('')}</ul><label class="field">Your answer<textarea id="training-answer" rows="7" placeholder="Be specific about what you did, how you did it, and what you still need to learn.">${escape(state.reviews[t.id]?.answer||'')}</textarea></label>${button('Review my answer ✧','review','primary')}${feedback?feedbackView(feedback):''}${state.reviews[t.id]?.followUp?`<div class="feedback"><strong>Independent follow-up</strong><p>${escape(state.reviews[t.id].followUp)}</p><label class="field">Try without a hint<textarea id="followup-answer" rows="4">${escape(state.reviews[t.id]?.followUpAnswer||'')}</textarea></label>${button('Review follow-up','followup')}</div>`:''}</section></div>`}`;}
 function feedbackView(f) {return `<div class="feedback"><h4>${escape(f.summary)}</h4>${f.demo?tag('Demo guidance · not an assessment','amber'):tag('AI review · not execution','gray')}<h4>What’s working</h4><ul>${f.strengths.map(s=>`<li>${escape(s)}</li>`).join('')}</ul><h4>Keep working on</h4><ul>${f.gaps.map(s=>`<li>${escape(s)}</li>`).join('')}</ul><p><strong>Try this:</strong> ${escape(f.hint)}</p></div>`;}
 function render() {
@@ -161,10 +270,21 @@ document.addEventListener('click',async event=>{
  }
  else if(action==='paths'){const result=await aiTask('paths',{experiences:confirmed(),preferences:state.profile},()=>({paths:examplePaths}));if(!Array.isArray(result.paths))throw Error('Invalid career path response.');paths=result.paths;render();}
  else if(action==='rewrite'){
-  const e=confirmed().find(e=>e.id===document.querySelector('#rewrite-experience').value);if(!e)throw Error('Confirm an experience first.');
-  const result=await aiTask('rewrite',{experience:e,job:job()},()=>({concise:e.description,tailored:e.description,interview:'Explain the context, your specific actions, and any known limitations. Original statement: '+e.description,factsUsed:[e.description],questions:['What did you personally own, and how was the result checked?']}));
-  if(!['concise','tailored','interview'].every(k=>typeof result[k]==='string')||!Array.isArray(result.factsUsed))throw Error('Invalid rewrite response.');
-  state.rewrite=result;await save();render();
+  const items = confirmed();
+  if(!items.length) throw Error('Confirm at least one experience first.');
+  const result = await aiTask('rewrite', {experiences: items, job: job()}, () => ({
+    summary: `Candidate with background in ${items.map(e => e.title).join(', ')}, targeting ${job().title}.`,
+    experiences: items.map(e => ({id: e.id, bullets: splitBullets(e.description)})),
+    concise: items[0].description,
+    tailored: items[0].description,
+    interview: 'Explain the context, your specific actions, and any known limitations.',
+    factsUsed: items.map(e => e.description),
+    questions: ['What did you personally own, and how was the result checked?']
+  }));
+  if(!['concise','tailored','interview'].every(k=>typeof result[k]==='string')||!Array.isArray(result.factsUsed)) throw Error('Invalid rewrite response.');
+  state.rewrite = result;
+  await save();
+  render();
  }
  else if(action==='save-version'){
   if(!confirmed().length)throw Error('Confirm your real experience before saving a résumé.');
