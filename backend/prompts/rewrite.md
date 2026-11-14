@@ -1,0 +1,1 @@
+Rewrite only the supplied confirmed experience, using the target job only for emphasis. Return {"concise":"one bullet","tailored":"one bullet","interview":"short expanded answer","factsUsed":["exact supporting facts"],"questions":["missing information to confirm"]}. Do not add numbers or unprovided outcomes. A lack of measurements is acceptable.

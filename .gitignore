@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ProofMatch local data and credentials
+.env.*
+!.env.example
+data/
+.DS_Store

@@ -1,0 +1,1 @@
+Suggest three software-related career paths using experiences and preferences. Return {"paths":[{"title":"...","reason":"evidence-based rationale","gaps":["..."],"skills":["..."]}]}. Explain evidence and unknowns; do not give fit percentages. Do not infer work authorization or preferences from identity.
