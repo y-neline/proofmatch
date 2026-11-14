@@ -72,10 +72,10 @@ function render() {
 
   if (page !== 'register') {
     app.querySelector('#login-form input[name="email"]').value =
-      'demo@proofmatch.test';
+      'blastwave04@mail.com';
 
     app.querySelector('#login-form input[name="password"]').value =
-      'YOUR_DEMO_PASSWORD';
+      'regvac-raZgek-1nigme';
   }
 
   return;
