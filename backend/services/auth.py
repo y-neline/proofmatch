@@ -32,10 +32,11 @@ def hash_password(password, salt):
 def public_user(row):
     active = row[3] > int(time.time())
     return {'id': row[0], 'email': row[1], 'name': row[2], 'plan': 'pro' if active else 'free',
-            'proUntil': row[3] if active else None, 'billingMode': 'demo'}
+            'proUntil': row[3] if active else None, 'billingMode': 'demo',
+            'guest': row[1].startswith('guest-') and row[1].endswith('@proofmatch.invalid')}
 
 
-def register(payload):
+def register(payload, *, migrate_legacy=True):
     email = str(payload.get('email', '')).strip().lower()
     name = str(payload.get('name', '')).strip()
     password = payload.get('password', '')
@@ -54,11 +55,24 @@ def register(payload):
             raise ValueError('An account with this email already exists. Sign in instead.')
         user_id = cursor.lastrowid
         # Preserve the old local workspace only for the first account on this device.
-        if db.execute('SELECT COUNT(*) FROM users').fetchone()[0] == 1:
+        if migrate_legacy and db.execute('SELECT COUNT(*) FROM users').fetchone()[0] == 1:
             old = db.execute('SELECT body FROM workspace WHERE id=1').fetchone()
             if old:
                 db.execute('INSERT INTO user_workspaces VALUES (?,?)', (user_id, old[0]))
     return new_session(user_id)
+
+
+def create_guest():
+    """Create an isolated, temporary demo account without shared credentials.
+
+    Guest accounts deliberately cannot be recovered by email/password, and never
+    inherit data from the legacy single-user workspace.
+    """
+    return register({
+        'name': 'Guest',
+        'email': 'guest-' + secrets.token_hex(16) + '@proofmatch.invalid',
+        'password': secrets.token_urlsafe(32),
+    }, migrate_legacy=False)
 
 
 def login(payload):
