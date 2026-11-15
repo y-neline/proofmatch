@@ -2,17 +2,14 @@ import {request, ask} from './api.js';
 import {authPage, plansPage, lockedPage, checkoutPage} from './account.js';
 import {initialWorkspace, exampleTasks, examplePaths} from './data.js';
 import {createTrainingController} from './training.js';
-
+import {createExperienceController} from './experience.js';
 // Central state and small rendering functions keep each feature easy to replace.
 let state = initialWorkspace();
 let config = {aiConfigured:false,jobsConfigured:false};
 let paths = examplePaths;
 let account = null;
 const isPro = () => account?.plan === 'pro' && account.proUntil * 1000 > Date.now();
-let importMode = 'upload';
-let importBusy = false;
-let importMessage = '';
-let importError = '';
+
 const app = document.querySelector('#app');
 const modal = document.querySelector('#modal');
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -28,12 +25,12 @@ const icons = {
 const icon = name => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${icons[name] || icons.resume}</svg>`;
 // 1. Reorder sidebar links so the workflow reads top-to-bottom:
 const pages = [
+  ['dashboard', 'Overview'],
   ['profile', 'My Experience'],
+  ['paths', 'Career Paths'],
   ['jobs', 'Job Matches'],
   ['resume', 'Résumé Studio'],
   ['training', 'Training Studio'],
-  ['paths', 'Career Paths'],
-  ['dashboard', 'Overview'],
   ['plans', 'Plans & Billing']
 ];
 
@@ -68,11 +65,25 @@ const training = createTrainingController({
   save,
   render
 });
+const experience = createExperienceController({
+  getState: () => state,
+  getConfig: () => config,
+  confirmed,
+  aiTask,
+  save,
+  render,
+  invalidate,
+  toast,
+  uid,
+  escape,
+  button,
+  tag
+});
 
 function dashboard() {
  const j=job(); const p=progress();
  return heading('YOUR NEXT CHAPTER',`Good to see you, ${escape(state.profile.name.split(' ')[0])} <span style="font-size:25px">✳</span>`,"Your experience has potential. Let’s put it to work.",button('+ Add experience','add-experience','primary'))+
- `<section class="hero"><div><div class="eyebrow">REAL EXPERIENCE. REAL POSSIBILITY.</div><h2>You’ve done the work.<br>Now tell a stronger story.</h2><p>Connect what you’ve done to what’s next — with a tailored résumé and a little intentional practice.</p><a class="button" href="#resume">Build my next chapter <span>↗</span></a></div><div class="hero-art" aria-hidden="true"><div class="orbit"></div><div class="orbit two"></div><div class="orbit three"></div><div class="proof-card"><strong>your<br>next.</strong><div class="paper-line"></div><div class="paper-line short"></div><div class="paper-line"></div><div class="card-tick">✓</div></div><div class="floating-tag">✧ Grounded in your experience</div></div></section>
+ `<section class="hero"><div><div class="eyebrow">REAL EXPERIENCE. REAL POSSIBILITY.</div><h2>You’ve done the work.<br>Now tell a stronger story.</h2><p>Connect what you’ve done to what’s next — with a tailored résumé and a little intentional practice.</p><a class="button" href="#profile">Build my next chapter <span>↗</span></a></div><div class="hero-art" aria-hidden="true"><div class="orbit"></div><div class="orbit two"></div><div class="orbit three"></div><div class="proof-card"><strong>your<br>next.</strong><div class="paper-line"></div><div class="paper-line short"></div><div class="paper-line"></div><div class="card-tick">✓</div></div><div class="floating-tag">✧ Grounded in your experience</div></div></section>
  <section class="stats" aria-label="Workspace statistics">${[
  ['Experiences added',state.experiences.length,`${confirmed().length} confirmed by you`,'profile'],['Saved opportunities',state.savedJobs.length,'A place to start exploring','jobs'],['Training plan',p+'<span>%</span>',state.tasks.length?`${state.tasks.filter(t=>state.reviews[t.id]?.completed).length} of ${state.tasks.length} tasks complete`:'Your first session is waiting','training'],['Your plan',isPro()?'Pro':'Free',isPro()?'All features unlocked':'Explore through Job Matches','profile']
  ].map(([label,value,note,i])=>`<div class="stat"><div class="stat-icon">${icon(i)}</div><label>${label}</label><strong>${value}</strong><small>${note}</small></div>`).join('')}</section>
@@ -80,9 +91,43 @@ function dashboard() {
  <section><div class="section-head"><h2>Your next steps</h2><span class="fine-print">A clear way forward</span></div><div class="panel journey">${[['01','Bring your experience together','Add and confirm your real contributions','profile',confirmed().length>0],['02','Find your direction','Explore roles connected to your story','paths',false],['03','Make it role-specific','Create a résumé with a clear purpose','resume',state.versions.length>0],['04','Practise with intention','Prepare for what the role actually needs','training',false]].map(([n,t,d,link,done],i)=>`<a href="#${link}" class="journey-item"><span class="step ${done?'done':i===1?'current':''}">${done?'✓':n}</span><span><strong>${t}</strong><small>${d}</small></span></a>`).join('')}</div></section></div>
  <section class="section-space"><div class="section-head"><div><h2>Opportunities to explore</h2><p class="fine-print" style="margin:6px 0 0">A few starting points for your next move.</p></div><a href="#jobs" class="button text">View all opportunities ↗</a></div><div class="jobs-preview">${state.jobs.slice(0,3).map(jobCard).join('')}</div></section><div class="info-strip"><span>✧</span><span><strong>You don’t have to finish preparing to start applying.</strong> Keep moving toward opportunities while you build confidence.</span></div>`;
 }
-function experiencePage() {return heading('START WITH WHAT’S REAL','Your story, in one place.','Bring your experiences together. You stay in control of every claim.',button('+ Add experience','add-experience','primary'))+`<div class="two-col"><section class="stack"><div class="panel"><h2>Import your résumé</h2><p class="small muted">Choose one way to import. AI reads your résumé and organizes the details for your review.</p><div class="import-tabs" role="group" aria-label="Résumé input method"><button type="button" data-action="import-upload" aria-pressed="${importMode==='upload'}" ${importBusy?'disabled':''}>Upload a file</button><button type="button" data-action="import-text" aria-pressed="${importMode==='text'}" ${importBusy?'disabled':''}>Paste text</button></div>${importMode==='upload'?`<div class="upload"><div style="font-size:28px;color:#819c64">↥</div><strong class="small">Upload once. We’ll read it for you.</strong><p>PDF, DOCX or TXT · Up to 8 MB<br>Text-based documents supported. Scans require OCR.</p><input type="file" id="resume-file" accept=".pdf,.docx,.txt" aria-label="Upload résumé" ${importBusy?'disabled':''}></div>`:`<label class="field">Résumé text<textarea id="source-text" rows="9" placeholder="Paste your résumé here…" ${importBusy?'disabled':''}>${escape(state.sourceText)}</textarea></label><button type="button" class="button primary" data-action="parse" ${importBusy?'disabled':''}>${importBusy?'Analyzing…':'Analyze résumé ✧'}</button>`}<p class="import-status ${importError?'error':''}" role="status" aria-live="polite">${escape(importError||importMessage)}</p>${state.sourceText?`<details class="original-source"><summary>View preserved original text</summary><pre>${escape(state.sourceText)}</pre></details><div style="margin-top:12px"><button type="button" class="button text" data-action="retry-parse" ${importBusy?'disabled':''}>Analyze preserved text again ↻</button></div>`:''}${state.importReview?.reviewEntries?.length?`<details class="original-source"><summary>${state.importReview.reviewEntries.length} entries need review</summary><pre>${escape(JSON.stringify(state.importReview.reviewEntries,null,2))}</pre></details>`:''}<p class="fine-print">${config.aiConfigured?'AI analysis creates draft experience cards. Confirm each fact before using it.':'Demo mode: connect your AI API for résumé analysis.'}</p></div><div class="panel"><h2>Job search preferences</h2><p class="small muted">These are your choices. We never infer them from your identity.</p><form id="preferences-form"><label class="field">Location<input name="location" value="${escape(state.profile.location)}"></label><label class="field">Work arrangement<input name="remote" value="${escape(state.profile.remote)}"></label><label class="field">Interests<input name="interests" value="${escape(state.profile.interests)}"></label><label class="field">Work authorization / sponsorship<input name="authorization" value="${escape(state.profile.authorization)}"></label><button class="button" type="submit">Save preferences</button></form></div></section><section><div class="section-head"><h2>Experience library</h2>${tag(state.experiences.length+' entries','gray')}</div><div class="stack">${state.experiences.map(e=>`<article class="panel experience-card"><div class="row spread">${tag(e.type,'gray')}${tag(e.confirmed?'User confirmed':'Review needed',e.confirmed?'':'amber')}</div><h3 style="margin-top:16px">${escape(e.title)}</h3><p class="muted">${escape(e.organization)} · ${escape(e.dates)}</p><p>${escape(e.description)}</p><div class="source"><strong>Source statement</strong><br>${escape(e.sourceQuote || 'Manually entered by you.')}</div><div class="row" style="margin-top:18px">${button('Edit details','edit:'+e.id)}${!e.confirmed?button('Confirm facts','confirm:'+e.id,'light'):''}</div></article>`).join('') || '<div class="empty">Add your first experience to begin.</div>'}</div></section></div>`;}
 function pathsPage() {return heading('SEE THE POSSIBILITIES','There’s more than one way forward.','Explore directions connected to your evidence, interests, and preferences.',button('Refresh suggestions ✧','paths','primary'))+`<div class="notice">${config.aiConfigured?'Suggestions are based on your supplied experience, not a certification of suitability.':'Illustrative career paths · Connect your AI API to generate suggestions from your own experience.'}</div><div class="job-list">${paths.map((p,i)=>`<article class="list-card"><span class="eyebrow">DIRECTION 0${i+1}</span><h3>${escape(p.title)}</h3>${tag(p.label || 'Based on your experience')}<p class="small muted">${escape(p.reason)}</p><div class="chip-row">${(p.skills||[]).map(s=>tag(s,'gray')).join('')}</div><div class="divider"></div><strong class="small">What to explore next</strong><ul>${(p.gaps||[]).map(g=>`<li>${escape(g)}</li>`).join('')}</ul><a class="button" href="#jobs">Explore opportunities →</a></article>`).join('')}</div><div class="info-strip">✧ These are starting points. You can pursue a different path and add evidence as you go.</div>`;}
-function jobsPage() {const j=job();return heading('FIND YOUR NEXT OPPORTUNITY','A role worth preparing for.','Explore source-linked roles or bring a job description of your own.',button('+ Paste a job description','add-job','primary'))+`<div class="toolbar"><input id="job-query" placeholder="Search job titles or locations…" aria-label="Search jobs">${button('Search live jobs ↗','search-jobs')}${button('Show saved','saved-jobs')}</div><div class="notice">${config.jobsConfigured?'Live search uses your configured company’s Greenhouse board. Job status reflects the last successful check.':'Example listings are shown below. Set GREENHOUSE_BOARD in .env for real company postings, or paste a JD. No sample job is a live opportunity.'}</div><div class="job-list" id="job-results">${state.jobs.map(jobCard).join('')}</div><section class="section-space panel"><div class="section-head"><div><div class="eyebrow">SELECTED ROLE</div><h2 style="margin-top:9px">${escape(j.title)} at ${escape(j.company)}</h2></div>${applicationLink(j)}</div><p class="small muted">${escape(j.description)}</p><div class="row">${tag(j.source,'gray')}${tag(j.status,'gray')}${tag(dateLabel(j.deadline),'amber')}</div>${j.checkedAt?`<p class="fine-print">Last checked: ${escape(new Date(j.checkedAt).toLocaleString())}</p>`:''}<div class="divider"></div><div class="row">${button('Compare with my experience ✧','analyze','primary')}</div><div id="analysis">${analysisView()}</div></section>`;}
+function jobsPage() {
+  const j = job();
+  return heading('FIND YOUR NEXT OPPORTUNITY', 'A role worth preparing for.', 'Explore source-linked roles or bring a job description of your own.', button('+ Paste a job description', 'add-job', 'primary')) +
+    `<div class="toolbar">
+      <input id="job-query" placeholder="Search job titles or locations…" aria-label="Search jobs">
+      ${button('Search live jobs ↗', 'search-jobs')}
+      ${button('Show saved', 'saved-jobs')}
+    </div>
+    <details class="panel" style="margin-bottom:20px">
+      <summary style="cursor:pointer;font-weight:700;font-family:Manrope,sans-serif;font-size:14px">Job search preferences (Location, Remote, Authorization)</summary>
+      <p class="small muted" style="margin-top:10px">These are your choices. We never infer them from your identity.</p>
+      <form id="preferences-form" style="margin-top:14px">
+        <div class="two-col">
+          <label class="field">Location<input name="location" value="${escape(state.profile.location)}"></label>
+          <label class="field">Work arrangement<input name="remote" value="${escape(state.profile.remote)}"></label>
+          <label class="field">Interests<input name="interests" value="${escape(state.profile.interests)}"></label>
+          <label class="field">Work authorization / sponsorship<input name="authorization" value="${escape(state.profile.authorization)}"></label>
+        </div>
+        <button class="button" type="submit">Save preferences</button>
+      </form>
+    </details>
+    <div class="notice">${config.jobsConfigured ? 'Live search uses your configured company’s Greenhouse board. Job status reflects the last successful check.' : 'Example listings are shown below. Set GREENHOUSE_BOARD in .env for real company postings, or paste a JD. No sample job is a live opportunity.'}</div>
+    <div class="job-list" id="job-results">${state.jobs.map(jobCard).join('')}</div>
+    <section class="section-space panel">
+      <div class="section-head">
+        <div><div class="eyebrow">SELECTED ROLE</div><h2 style="margin-top:9px">${escape(j.title)} at ${escape(j.company)}</h2></div>
+        ${applicationLink(j)}
+      </div>
+      <p class="small muted">${escape(j.description)}</p>
+      <div class="row">${tag(j.source, 'gray')}${tag(j.status, 'gray')}${tag(dateLabel(j.deadline), 'amber')}</div>
+      ${j.checkedAt ? `<p class="fine-print">Last checked: ${escape(new Date(j.checkedAt).toLocaleString())}</p>` : ''}
+      <div class="divider"></div>
+      <div class="row">${button('Compare with my experience ✧', 'analyze', 'primary')}</div>
+      <div id="analysis">${analysisView()}</div>
+    </section>`;
+}
 function analysisView() {if(!state.analysis)return '';return `<div class="section-space"><h2>Requirements & your evidence</h2>${state.analysis.requirements.map(r=>`<article class="requirement"><div class="row spread"><h4>${escape(r.requirement)}</h4>${tag(r.status,r.status==='Supported'?'':'amber')}</div>${tag(r.kind,'gray')}<blockquote>${escape(r.quote)}</blockquote><p><strong>Evidence:</strong> ${escape(r.evidence)}</p><p><strong>Next step:</strong> ${escape(r.next)}</p></article>`).join('')}</div>`;}
 function splitBullets(text) {
   return String(text || '')
@@ -197,10 +242,10 @@ function resumePage() {
 }
 
 function render() {
- const page=location.hash.slice(1)||'profile';
+ const page=location.hash.slice(1)||'dashboard';
  document.body.classList.toggle('auth-mode',!account);
  if(!account){app.innerHTML=authPage(page==='register'?'register':'login');return;}
- if(page==='login'||page==='register'){location.hash='profile';return;}
+ if(page==='login'||page==='register'){location.hash='dashboard';return;}
  document.querySelector('#account-controls').innerHTML=`<a class="plan-pill ${isPro()?'pro':''}" href="#plans">${isPro()?'✧ Pro':'Free · Upgrade ↗'}</a><button type="button" class="button text" data-action="logout">Sign out</button>`;
 
  document.querySelector('#navigation').innerHTML=pages.map(([id,label])=>`<a href="#${id}" class="nav-link ${page===id?'active':''}"><span class="nav-icon">${icon(id)}</span>${label}${['resume','training'].includes(id)&&!isPro()?'<span class="nav-count">PRO</span>':''}</a>`).join('');
@@ -208,12 +253,28 @@ function render() {
  document.querySelector('#sidebar-name').textContent=state.profile.name;
  document.querySelector('.avatar').textContent=state.profile.name.split(' ').map(n=>n[0]).slice(0,2).join('');
  document.querySelector('#mode-label').textContent=config.aiConfigured?'AI connected · Local workspace':'Demo workspace';
- const renderers={dashboard,profile:experiencePage,paths:pathsPage,jobs:jobsPage,resume:resumePage,training:training.page,plans:()=>plansPage(account,isPro()),checkout:()=>checkoutPage(account,isPro())};
- app.innerHTML=['resume','training'].includes(page)&&!isPro()?lockedPage(page):(renderers[page]||experiencePage)();
+ const renderers={dashboard,profile:experience.page,paths:pathsPage,jobs:jobsPage,resume:resumePage,training:training.page,plans:()=>plansPage(account,isPro()),checkout:()=>checkoutPage(account,isPro())};
+ app.innerHTML=['resume','training'].includes(page)&&!isPro()?lockedPage(page):(renderers[page]||dashboard)();
 }
 function showModal(content) {document.querySelector('#modal-content').innerHTML=content;modal.showModal();}
 function closeButton() {return button('Cancel','close');}
-function experienceModal(id) {const e=state.experiences.find(e=>e.id===id)||{};showModal(`<h2>${id?'Edit':'Add'} experience</h2><form id="experience-form" data-id="${id||''}"><div class="two-col"><label class="field">Title<input name="title" required value="${escape(e.title)}"></label><label class="field">Organization<input name="organization" value="${escape(e.organization)}"></label></div><div class="two-col"><label class="field">Type<select name="type">${['Project','Work','Education','Certification','Skill'].map(t=>`<option ${e.type===t?'selected':''}>${t}</option>`).join('')}</select></label><label class="field">Dates<input name="dates" value="${escape(e.dates)}" placeholder="e.g. Jan 2024 – Jun 2025"></label></div><label class="field">What did you actually do?<textarea name="description" required rows="5">${escape(e.description)}</textarea></label><p class="fine-print">Describe your personal contribution. Include results only when you can explain the evidence.</p><label class="small"><input type="checkbox" name="confirmed" ${e.confirmed?'checked':''}> I confirm these details reflect my real experience.</label><div class="row" style="margin-top:22px">${closeButton()}<button class="button primary">Save experience</button></div></form>`);}
+function experienceModal(id) {
+  const e = state.experiences.find(e => e.id === id) || {};
+  showModal(`<h2>${id ? 'Edit' : 'Add'} experience</h2>
+    <form id="experience-form" data-id="${id || ''}">
+      <div class="two-col">
+        <label class="field">Title<input name="title" required value="${escape(e.title)}"></label>
+        <label class="field">Organization<input name="organization" value="${escape(e.organization)}"></label>
+      </div>
+      <div class="two-col">
+        <label class="field">Type<select name="type">${['Project', 'Work', 'Education', 'Certification', 'Skill'].map(t => `<option ${e.type === t ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+        <label class="field">Dates<input name="dates" value="${escape(e.dates)}" placeholder="e.g. Jan 2024 – Jun 2025"></label>
+      </div>
+      <label class="field">What did you actually do?<textarea name="description" required rows="5">${escape(e.description)}</textarea></label>
+      <p class="fine-print">Describe your personal contribution. Include results only when you can explain the evidence.</p>
+      <div class="row" style="margin-top:16px">${closeButton()}<button class="button primary">Save experience</button></div>
+    </form>`);
+}
 function addJobModal() {showModal(`<h2>Bring your own opportunity</h2><form id="job-form"><div class="two-col"><label class="field">Job title<input name="title" required></label><label class="field">Company<input name="company" required></label></div><label class="field">Location / work arrangement<input name="location" placeholder="Not specified"></label><label class="field">Original application URL<input name="url" type="url" placeholder="https://…"></label><label class="field">Explicit application deadline (optional)<input name="deadline" type="date"></label><label class="field">Full job description<textarea name="description" required rows="8"></textarea></label><p class="fine-print">Use a deadline only if the source explicitly provides it. Manually pasted roles have unconfirmed availability.</p><div class="row">${closeButton()}<button class="button primary">Save opportunity</button></div></form>`);}
 function settingsModal() {showModal(`<h2>Your workspace</h2><form id="profile-form"><label class="field">Name<input name="name" required value="${escape(state.profile.name)}"></label><label class="field">Professional headline<input name="headline" value="${escape(state.profile.headline)}"></label><div class="notice">${config.aiConfigured?'AI connection configured':'AI is not configured'} · ${config.jobsConfigured?'Live job board configured':'Job board is not configured'}<br>Configure server secrets in .env, then restart the server.</div><p class="fine-print">${account.guest?'Guest demo session':'Signed in as '+escape(account.email)} · ${isPro()?'Pro':'Free'} plan. Your data is saved in your own account.</p><a class="button text" href="#plans" data-action="view-plans">Manage plan ↗</a><div class="row">${closeButton()}<button class="button primary">Save profile</button>${button('Reset workspace','clear-demo')}</div></form>`);}
 function invalidate() {state.analysis=null;state.rewrite=null;state.tasks=[];state.reviews={};training.reset();}
@@ -222,29 +283,7 @@ async function aiTask(task,payload,demo) {
  toast('Demo output — connect your API for personalized AI results.');
  return demo();
 }
-/** Both input methods share the same AI analysis and source-validation path. */
-async function analyzeResume() {
- if(importBusy)return;
- if(!state.sourceText.trim())throw Error('Paste or upload your résumé first.');
- importBusy=true;importError='';importMessage='Analyzing your résumé with AI…';render();
- try {
-  // Save the original before the model call so API failures cannot discard it.
-  await save();
-  const sourceText=state.sourceText;
-  const result=await aiTask('parse',{sourceText},()=>({experiences:[{title:'Imported résumé — review details',organization:'',type:'Project',dates:'',description:sourceText,sourceQuote:sourceText,confirmed:false}]}));
-  state.importReview={rawAnalysis:result.rawAnalysis||result,reviewEntries:result.reviewEntries||[],questions:result.questions||[]};
-  await save();
-  if(!Array.isArray(result.experiences)||result.experiences.some(e=>!e.title||!e.description||!e.sourceQuote||!sourceText.includes(e.sourceQuote)))throw Error('AI analysis did not return valid source-backed entries. Your original text and AI response are preserved. Retry analysis or review the source.');
-  let added=0;
-  for(const e of result.experiences){
-   if(state.experiences.some(existing=>existing.sourceQuote===e.sourceQuote))continue;
-   state.experiences.push({...e,id:uid(),confirmed:false});added++;
-  }
-  if(added)invalidate();await save();
-  importMessage=(added?`${added} experience entries extracted. Review and confirm the details on the right.`:result.experiences.length?'These entries already exist in your library. No duplicates were added.':'No source-backed entries could be added. Retry analysis using the preserved original text.')+(result.warnings?.length?' '+result.warnings.join(' '):'');
- }catch(error){importMessage='';importError=error.message;toast(error.message);}
- finally{importBusy=false;render();}
-}
+
 function download(text,name) {const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([text],{type:'text/plain'}));link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);}
 
 // Event delegation avoids rebinding handlers after a page changes.
@@ -256,13 +295,14 @@ document.addEventListener('click',async event=>{
  el.disabled=true;
  try {
  if(await training.handleAction(action,el))return;
+ if (await experience.handleAction(action)) return;
  if(action==='guest-login'){
   const errorBox=document.querySelector('#auth-error');
   if(errorBox)errorBox.textContent='';
   const result=await request('auth/guest',{});
   account=result.user;
   await loadWorkspace();
-  location.hash='profile';render();
+  location.hash='dashboard';render();
   return;
  }
  if(action==='logout'){await request('auth/logout',{});account=null;state=initialWorkspace();modal.close();location.hash='login';render();return;}
@@ -271,13 +311,6 @@ document.addEventListener('click',async event=>{
  if(action==='close'){modal.close();return;}
  if(action==='add-experience')experienceModal();
  else if(action.startsWith('edit:'))experienceModal(action.slice(5));
- else if(action.startsWith('confirm:')){state.experiences.find(e=>e.id===action.slice(8)).confirmed=true;invalidate();await save();render();}
- else if(action==='import-upload'||action==='import-text'){if(importBusy)return;const draft=document.querySelector('#source-text');if(draft)state.sourceText=draft.value;importMode=action==='import-upload'?'upload':'text';importError='';render();}
- else if(action==='retry-parse'){await analyzeResume();}
- else if(action==='parse'){
-  state.sourceText=document.querySelector('#source-text').value;
-  await analyzeResume();
- }
  else if(action==='add-job')addJobModal();
  else if(action==='bookmark'){const id=el.dataset.id;state.savedJobs=state.savedJobs.includes(id)?state.savedJobs.filter(x=>x!==id):[...state.savedJobs,id];await save();render();}
  else if(action==='select-job'){if(state.selectedJob!==el.dataset.id){state.selectedJob=el.dataset.id;invalidate();await save();}location.hash='jobs';render();}
@@ -338,14 +371,14 @@ document.addEventListener('submit',async event=>{
     await loadWorkspace();form.reset();location.hash='checkout';render();toast('Demo Pro activated. All features unlocked. No payment was taken.');
    }else{
     const result=await request(form.id==='register-form'?'auth/register':'auth/login',values);account=result.user;
-    await loadWorkspace();location.hash='profile';render();
+    await loadWorkspace();location.hash='dashboard';render();
    }
   }catch(error){errorBox.textContent=error.message;}finally{submit.disabled=false;}
   return;
  }
  try {
  if(form.id==='experience-form'){
-  const old=state.experiences.find(e=>e.id===form.dataset.id);const entry={...values,id:old?.id||uid(),sourceQuote:old?.sourceQuote||values.description,confirmed:values.confirmed==='on'};
+  const old=state.experiences.find(e=>e.id===form.dataset.id);const entry={...values,id:old?.id||uid(),sourceQuote:old?.sourceQuote||values.description,confirmed: old?.confirmed || false};
   if(old)state.experiences[state.experiences.indexOf(old)]=entry;else state.experiences.push(entry);invalidate();
  }else if(form.id==='job-form'){
   if(values.url&&!safeUrl(values.url))throw Error('Use an HTTP or HTTPS source URL.');
@@ -356,17 +389,15 @@ document.addEventListener('submit',async event=>{
  await save();modal.close();render();toast('Changes saved.');
  }catch(error){toast(error.message);}
 });
-document.addEventListener('change',async event=>{
- const el=event.target;
- try {
- if(el.id==='resume-file'){
-  if(importBusy)return;
-  const file=el.files[0];if(!file)return;if(file.size>8*1024*1024)throw Error('Please choose a file smaller than 8 MB.');
-  el.disabled=true;importBusy=true;importError='';importMessage='Reading document contents…';render();
-  const content=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});
-  const result=await request('import',{name:file.name,content});state.sourceText=result.text;importBusy=false;await analyzeResume();
- }
- }catch(error){if(el.id==='resume-file'){importBusy=false;importMessage='';importError=error.message;render();}toast(error.message);}
+document.addEventListener('change', async event => {
+  const el = event.target;
+  try {
+    if (el.id === 'resume-file') {
+      await experience.handleFileChange(el);
+    }
+  } catch (error) {
+    toast(error.message);
+  }
 });
 document.querySelector('#settings-button').onclick=settingsModal;
 document.querySelector('#help-button').onclick=()=>showModal(`<h2>Real experience. Clear next steps.</h2><p class="small muted">ProofMatch connects your experience, a specific job, a tailored résumé, and focused practice. The initial profile and listings are examples.</p><p class="small muted">Use My Experience to import or add your own details. Confirm facts before tailoring. Connect your AI API and Greenhouse board in .env for live features. Training progress never blocks an application.</p><p class="small muted">Your workspace belongs to your account. Free includes features through Job Matches. Pro unlocks Résumé and Training. Checkout is a simulation with no real payment.</p>${closeButton()}`);
@@ -377,7 +408,7 @@ async function loadWorkspace(){
  const saved=await request('workspace');
  state=saved.workspace||initialWorkspace();
  if(!saved.workspace){state.profile={...state.profile,name:account.name,headline:'',location:'',remote:'',interests:'',authorization:'Not specified'};state.sourceText='';state.experiences=[];state.savedJobs=[];}
- training.reset();importMessage='';importError='';paths=examplePaths;
+ training.reset();experience.reset();paths=examplePaths;
 }
 async function init(){try{
  const [settings,session]=await Promise.all([request('config'),request('auth/me')]);config=settings;account=session.user;

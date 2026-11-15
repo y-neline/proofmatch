@@ -8,7 +8,6 @@ from http.cookies import SimpleCookie
 from pathlib import Path
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
-from backend.services import ai, jobs, store, documents, auth
 
 ROOT = Path(__file__).resolve().parents[1]
 # Minimal .env loader avoids a runtime dependency and never exposes secrets to JS.
@@ -17,6 +16,8 @@ if (ROOT / '.env').exists():
         if '=' in line and not line.lstrip().startswith('#'):
             key, value = line.split('=', 1)
             os.environ.setdefault(key.strip(), value.strip().strip('\"\''))
+            
+from backend.services import ai, jobs, store, documents, auth
 
 # Basic per-IP throttling for password endpoints. Production deployments should
 # also use an ingress-level limiter and verified email/password recovery flows.

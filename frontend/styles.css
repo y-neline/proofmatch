@@ -38,3 +38,8 @@ body.auth-mode .sidebar,body.auth-mode .topbar,body.auth-mode footer{display:non
     padding-top: 12px;
   }
 }
+
+.ai-loader{display:flex;align-items:center;gap:12px;background:#f2f6eb;border:1px solid #d5e2c4;border-radius:9px;padding:14px 16px;margin-top:14px;color:var(--deep);font-size:12px}
+.spinner{width:18px;height:18px;border:2.5px solid #c9d9b4;border-top-color:var(--green);border-radius:50%;animation:spin .75s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+dialog::backdrop{position:fixed;inset:0;background:#152d2655;backdrop-filter:blur(3px)}
