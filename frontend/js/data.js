@@ -21,3 +21,30 @@ export const examplePaths = [
  {title:'Application Developer',reason:'You have delivered connected application features. Explore how the backend supports them.',skills:['Application logic','APIs','UI development'],gaps:['Backend depth','System design'],label:'A natural next step'},
  {title:'Data Analyst',reason:'Your spending dashboard offers a starting point for exploring data-focused roles.',skills:['Python','Charts'],gaps:['SQL','Statistical reasoning'],label:'Worth exploring'}
 ];
+
+export const sampleResumeText = [
+  'Jamie Davis — Frontend Developer, Austin, TX',
+  'Frontend Developer Intern, Northwind Labs, Jun 2023 – Aug 2023. Built reusable Vue components for an internal analytics dashboard. Integrated REST API endpoints and added loading and error states. Wrote unit tests for form validation with Vitest.',
+  'Carbon asset management interface, personal project, 2025. Built a carbon asset management interface in Vue. Implemented asset lists, filtering, pagination, REST API integration, and loading and error states.',
+  'Personal spending dashboard, 2024. Created a personal spending dashboard using Python and charts.',
+  'B.S. in Computer Science, 2024.',
+  'Skills: Vue, JavaScript, HTML, CSS, REST APIs, Git, Python.'
+].join('\n');
+
+export const sampleExperiences = () => [
+  {title:'Frontend Developer Intern', organization:'Northwind Labs', type:'Work', dates:'Jun 2023 – Aug 2023',
+   description:'Built reusable Vue components for an internal analytics dashboard. Integrated REST API endpoints and added loading and error states. Wrote unit tests for form validation with Vitest.',
+   sourceQuote:'Built reusable Vue components for an internal analytics dashboard. Integrated REST API endpoints and added loading and error states. Wrote unit tests for form validation with Vitest.'},
+  {title:'Carbon asset management interface', organization:'Personal project', type:'Project', dates:'2025',
+   description:'Built a carbon asset management interface in Vue. Implemented asset lists, filtering, pagination, REST API integration, and loading and error states.',
+   sourceQuote:'Built a carbon asset management interface in Vue. Implemented asset lists, filtering, pagination, REST API integration, and loading and error states.'},
+  {title:'Personal spending dashboard', organization:'Independent project', type:'Project', dates:'2024',
+   description:'Created a personal spending dashboard using Python and charts.',
+   sourceQuote:'Created a personal spending dashboard using Python and charts.'},
+  {title:'B.S. in Computer Science', organization:'', type:'Education', dates:'2024',
+   description:'B.S. in Computer Science, 2024.',
+   sourceQuote:'B.S. in Computer Science, 2024.'},
+  {title:'Technical skills', organization:'', type:'Skill', dates:'',
+   description:'Vue, JavaScript, HTML, CSS, REST APIs, Git, Python',
+   sourceQuote:'Skills: Vue, JavaScript, HTML, CSS, REST APIs, Git, Python.'}
+];

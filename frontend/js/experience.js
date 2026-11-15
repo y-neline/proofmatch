@@ -1,4 +1,5 @@
 import {request} from './api.js';
+import {sampleResumeText, sampleExperiences} from './data.js';
 
 export function createExperienceController({
   getState, getConfig, confirmed, aiTask, save, render, invalidate, toast, uid, escape, button, tag
@@ -23,17 +24,17 @@ export function createExperienceController({
     try {
       await save();
       const sourceText = state.sourceText;
-      const result = await aiTask('parse', {sourceText}, () => ({
-        experiences: [{
-          title: 'Imported résumé — review details',
-          organization: '',
-          type: 'Project',
-          dates: '',
-          description: sourceText,
-          sourceQuote: sourceText,
-          confirmed: false
-        }]
-      }));
+      const result = await aiTask('parse', {sourceText}, () => sourceText === sampleResumeText
+  ? {experiences: sampleExperiences()}
+  : {experiences: [{
+      title: 'Imported résumé — review details',
+      organization: '',
+      type: 'Project',
+      dates: '',
+      description: sourceText,
+      sourceQuote: sourceText,
+      confirmed: false
+    }]});
       state.importReview = {
         rawAnalysis: result.rawAnalysis || result,
         reviewEntries: result.reviewEntries || [],
@@ -99,8 +100,12 @@ export function createExperienceController({
       toast(error.message);
     }
   }
-
   async function handleAction(action) {
+    if (action === 'load-sample') {
+  getState().sourceText = sampleResumeText;
+  await analyzeResume();
+  return true;
+}
     const state = getState();
     if (action.startsWith('confirm:')) {
       state.experiences.find(e => e.id === action.slice(8)).confirmed = true;
@@ -140,6 +145,9 @@ export function createExperienceController({
               <strong class="small">Upload PDF, DOCX, or TXT</strong>
               <p>Up to 8 MB · Text-based files only</p>
               <label for="resume-file" class="button primary" style="cursor:pointer;margin-top:6px">Choose file</label>
+<div style="margin-top:18px">
+  <button type="button" class="button text" data-action="load-sample" style="font-weight:700">or try a sample résumé</button>
+</div>
               <input type="file" id="resume-file" accept=".pdf,.docx,.txt" aria-label="Upload résumé" style="display:none" ${importBusy ? 'disabled' : ''}>
             </div>
             ${importBusy
@@ -159,7 +167,7 @@ export function createExperienceController({
               ${tag(state.experiences.length + ' entries', 'gray')}
             </div>
           </div>
-          ${confirmed().length > 0 ? `<div class="info-strip" style="margin:0 0 18px;justify-content:space-between;align-items:center"><span><strong>${confirmed().length} confirmed facts ready.</strong> Next: select a target job to match evidence.</span><a href="#jobs" class="button primary">Continue to Job Matches →</a></div>` : ''}
+          ${confirmed().length > 0 ? `<div class="info-strip" style="margin:0 0 18px;justify-content:space-between;align-items:center"><span><strong>${confirmed().length} confirmed facts ready.</strong> Next: select a target job to match evidence.</span><a href="#jobs" class="button primary" style="justify-content:center;text-align:center">Continue</a></div>` : ''}
           <div class="stack">
             ${state.experiences.map(e => `<article class="panel experience-card">
               <div class="row spread">${tag(e.type, 'gray')}${tag(e.confirmed ? 'User confirmed' : 'Review needed', e.confirmed ? '' : 'amber')}</div>
