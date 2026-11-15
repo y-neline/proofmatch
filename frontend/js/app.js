@@ -100,19 +100,6 @@ function jobsPage() {
       ${button('Search live jobs ↗', 'search-jobs')}
       ${button('Show saved', 'saved-jobs')}
     </div>
-    <details class="panel" style="margin-bottom:20px">
-      <summary style="cursor:pointer;font-weight:700;font-family:Manrope,sans-serif;font-size:14px">Job search preferences (Location, Remote, Authorization)</summary>
-      <p class="small muted" style="margin-top:10px">These are your choices. We never infer them from your identity.</p>
-      <form id="preferences-form" style="margin-top:14px">
-        <div class="two-col">
-          <label class="field">Location<input name="location" value="${escape(state.profile.location)}"></label>
-          <label class="field">Work arrangement<input name="remote" value="${escape(state.profile.remote)}"></label>
-          <label class="field">Interests<input name="interests" value="${escape(state.profile.interests)}"></label>
-          <label class="field">Work authorization / sponsorship<input name="authorization" value="${escape(state.profile.authorization)}"></label>
-        </div>
-        <button class="button" type="submit">Save preferences</button>
-      </form>
-    </details>
     <div class="notice">${config.jobsConfigured ? 'Live search uses your configured company’s Greenhouse board. Job status reflects the last successful check.' : 'Example listings are shown below. Set GREENHOUSE_BOARD in .env for real company postings, or paste a JD. No sample job is a live opportunity.'}</div>
     <div class="job-list" id="job-results">${state.jobs.map(jobCard).join('')}</div>
     <section class="section-space panel">
@@ -384,7 +371,7 @@ document.addEventListener('submit',async event=>{
   if(values.url&&!safeUrl(values.url))throw Error('Use an HTTP or HTTPS source URL.');
   const entry={...values,id:uid(),deadline:values.deadline||null,source:'Pasted job description',status:'Availability unconfirmed',demo:false};state.jobs.unshift(entry);state.selectedJob=entry.id;state.savedJobs.push(entry.id);invalidate();
  }else if(form.id==='profile-form'){state.profile={...state.profile,...values};}
- else if(form.id==='preferences-form'){state.profile={...state.profile,...values};}
+
  else return;
  await save();modal.close();render();toast('Changes saved.');
  }catch(error){toast(error.message);}
